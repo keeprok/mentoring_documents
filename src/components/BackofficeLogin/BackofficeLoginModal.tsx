@@ -11,7 +11,10 @@ import { Button } from 'src/components/ui/button';
 import { Input } from 'src/components/ui/input';
 import { Label } from 'src/components/ui/label';
 import { STORAGE_KEYS } from 'src/lib/apiUtils';
-import { fetchWithErrorHandling } from 'src/lib/apiUtils';
+
+import { postSignInApi, getTokenApi } from 'src/repositories/api/BackofficeLogin';
+import { useLoginForm } from 'src/hooks/BackofficeLogin';
+// import { useSevicesHook } from 'src/services/BackofficeLogin';
 
 type BackOfficeUserType = {
   id: number;
@@ -22,36 +25,27 @@ type BackOfficeUserType = {
   roles: string[];
 };
 
-type LoginData = {
+export type LoginData = {
   user: BackOfficeUserType;
   access_token: string;
 };
-
-const getBackofficeEndpoint = () => {
-  // 프로덕션 환경
-  if (import.meta.env.PROD) {
-    return 'https://hodong-erp.com/backoffice';
-  }
-
-  // MSW가 명시적으로 비활성화된 경우에만 실제 API 사용
-  if (import.meta.env.VITE_ENABLE_MSW === 'false') {
-    return (
-      import.meta.env.VITE_API_BASE_URL + '/backoffice' || 'https://test.hodong-erp.com/backoffice'
-    );
-  }
-
-  // 기본값: MSW 사용
-  return '/api/backoffice';
-};
-
-const BACKOFFICE_ENDPOINT = getBackofficeEndpoint();
+//영록 : getBackofficeEndpoint
 
 export function BackofficeLoginModal({ children }: { children: React.ReactNode }) {
-  const [username, setUserName] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  //영록 : 상태 - 훅
+  const {
+    username,
+    password,
+    setUserName,
+    setPassword,
+    isLoading,
+    setIsLoading,
+    isOpen,
+    setIsOpen,
+  } = useLoginForm();
   const [user, setUser] = useState<BackOfficeUserType | undefined>(undefined);
+
+  //영록 - api BACKOFFICE_ENDPOINT
 
   useEffect(() => {
     // NOTE: 앱 시작 시 localStorage에서 사용자 정보 복원 및 토큰 유효성 검증
@@ -62,13 +56,11 @@ export function BackofficeLoginModal({ children }: { children: React.ReactNode }
 
         const validateToken = async (retryCount = 0) => {
           try {
-            await fetchWithErrorHandling(`${BACKOFFICE_ENDPOINT}/me`, {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${userData.access_token}`,
-              },
-            });
+            //영록 - api
 
+            await getTokenApi(userData.access_token);
+
+            //영록 -  비즈니스 hook
             setUser(userData.user);
             console.log('자동 로그인 성공:', userData.user.real_name || userData.user.name);
           } catch (error) {
@@ -90,7 +82,7 @@ export function BackofficeLoginModal({ children }: { children: React.ReactNode }
       }
     }
   }, []);
-
+  // 영록 - 비즈니스 hook
   const handleLogin = async () => {
     if (!username || !password) {
       alert('백오피스 ID와 비밀번호를 입력해주세요.');
@@ -98,19 +90,10 @@ export function BackofficeLoginModal({ children }: { children: React.ReactNode }
     }
 
     setIsLoading(true);
-
     try {
-      const { user, access_token } = await fetchWithErrorHandling<LoginData>(
-        `${BACKOFFICE_ENDPOINT}/login`,
-        {
-          method: 'POST',
-          skipAuth: true,
-          body: JSON.stringify({
-            username: username,
-            password,
-          }),
-        },
-      );
+      const { user, access_token } = await postSignInApi(username, password);
+
+      // 영록 - api
 
       const loginData: LoginData = { user, access_token };
       localStorage.setItem(STORAGE_KEYS.BACKOFFICE_USER_DATA, JSON.stringify(loginData));
@@ -128,6 +111,8 @@ export function BackofficeLoginModal({ children }: { children: React.ReactNode }
       setIsLoading(false);
     }
   };
+
+  // 영록 - 비즈니스 hook
 
   const handleLogout = () => {
     const confirmed = window.confirm('로그아웃 하시겠습니까?');
